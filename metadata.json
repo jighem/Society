@@ -1,0 +1,6 @@
+{
+  "name": "Co-op Society",
+  "description": "A complete housing society administration, billing, and resident operations app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

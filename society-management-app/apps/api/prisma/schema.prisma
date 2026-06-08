@@ -1,0 +1,709 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String          @id @default(uuid())
+  email              String          @unique
+  mobile             String          @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  isActive           Boolean         @default(true)
+  failedLoginAttempts Int            @default(0)
+  lastLoginAt        DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+
+  // Relations
+  roleId             String
+  role               Role            @relation(fields: [roleId], references: [id])
+  societyId          String?
+  society            Society?        @relation(fields: [societyId], references: [id])
+  
+  // Back references
+  sessions           UserSession[]
+  owners             Owner[]
+  tenants            Tenant[]
+  complaintsRaised   Complaint[]     @relation("ComplaintsRaised")
+  complaintsAssigned Complaint[]     @relation("ComplaintsAssigned")
+  comments           ComplaintComment[]
+  createdNotices     Notice[]
+  auditedMeetings    MeetingAttendee[]
+  bookings           FacilityBooking[]
+  votes              PollVote[]
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // e.g. "society.view", "flat.create"
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model Society {
+  id                 String     @id @default(uuid())
+  name               String
+  registrationNumber String     @unique
+  address            String
+  city               String
+  state              String
+  pinCode            String
+  contactNumber      String
+  email              String
+  gstNumber          String?
+  bankName           String
+  bankAccountNumber  String
+  ifscCode           String
+  logo               String?
+  isActive           Boolean    @default(true)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  users              User[]
+  buildings          Building[]
+  wings              Wing[]
+  flats              Flat[]
+  maintenanceHeads   MaintenanceHead[]
+  maintenanceRules   MaintenanceRule[]
+  complaints         Complaint[]
+  notices            Notice[]
+  documents          Document[]
+  meetings           Meeting[]
+  facilities         Facility[]
+  visitors           Visitor[]
+  polls              Poll[]
+  ledgers            Ledger[]
+  auditLogs          AuditLog[]
+}
+
+model Building {
+  id        String    @id @default(uuid())
+  name      String
+  code      String
+  floors    Int
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  societyId String
+  society   Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  wings     Wing[]
+  flats     Flat[]
+}
+
+model Wing {
+  id         String    @id @default(uuid())
+  name       String
+  floors     Int
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  buildingId String
+  building   Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  societyId  String
+  society    Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flats      Flat[]
+}
+
+model Flat {
+  id                  String             @id @default(uuid())
+  flatNumber          String
+  floor               Int
+  carpetArea          Float
+  builtUpArea         Float
+  flatType            String             // 1BHK, 2BHK, 3BHK, Shop, Office, Other
+  ownershipStatus     String             // Owned, Rented, Vacant
+  occupancyStatus     String             // SelfOccupied, TenantOccupied, Vacant
+  maintenanceCategory String
+  isActive            Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  societyId           String
+  society             Society            @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  buildingId          String
+  building            Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  wingId              String
+  wing                Wing               @relation(fields: [wingId], references: [id], onDelete: Cascade)
+
+  owners              Owner[]
+  tenants             Tenant[]
+  familyMembers       FamilyMember[]
+  vehicles            Vehicle[]
+  parkingSlots        ParkingSlot[]
+  complaints          Complaint[]
+  billItems           MaintenanceBillItem[]
+  bookings            FacilityBooking[]
+  ledgerEntries       LedgerEntry[]
+}
+
+model Owner {
+  id                 String         @id @default(uuid())
+  name               String
+  mobileNumber       String
+  email              String
+  alternateMobile    String?
+  address            String
+  panNumber          String
+  aadhaarNumber      String?
+  emergencyContact   String
+  ownershipStartDate DateTime
+  ownershipEndDate   DateTime?
+  documentUrl        String?
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  userId             String?
+  user               User?          @relation(fields: [userId], references: [id])
+  flatId             String
+  flat               Flat           @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  tenants            Tenant[]
+}
+
+model Tenant {
+  id                     String     @id @default(uuid())
+  name                   String
+  mobileNumber           String
+  email                  String
+  policeVerificationStatus Boolean  @default(false)
+  agreementStartDate     DateTime
+  agreementEndDate       DateTime
+  documentUrl            String?
+  isActive               Boolean    @default(true)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+
+  userId                 String?
+  user                   User?      @relation(fields: [userId], references: [id])
+  ownerId                String
+  owner                  Owner      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  flatId                 String
+  flat                   Flat       @relation(fields: [flatId], references: [id], onDelete: Cascade)
+}
+
+model FamilyMember {
+  id           String    @id @default(uuid())
+  name         String
+  relation     String
+  mobileNumber String?
+  email        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  flatId       String
+  flat         Flat      @relation(fields: [flatId], references: [id], onDelete: Cascade)
+}
+
+model Vehicle {
+  id          String   @id @default(uuid())
+  number      String   @unique
+  type        String   // TWO_WHEELER, FOUR_WHEELER
+  brandModel  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flatId      String
+  flat        Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
+}
+
+model ParkingSlot {
+  id          String   @id @default(uuid())
+  slotNumber  String
+  type        String   // TWO_WHEELER, FOUR_WHEELER
+  charges     Float    @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flatId      String?
+  flat        Flat?    @relation(fields: [flatId], references: [id])
+}
+
+model MaintenanceHead {
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g., "SINK_FUND", "SECURITY_CHARGES"
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  societyId   String
+  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceRule {
+  id                String   @id @default(uuid())
+  name              String
+  calculationMethod String   // FIXED, SQFT_AREA, TYPE_BASED, RESIDENTS_COUNT, CUSTOM
+  amount            Float
+  formula           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  societyId         String
+  society           Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+}
+
+model MaintenancePeriod {
+  id         String            @id @default(uuid())
+  name       String            // e.g., "June 2026", "Q2 2026"
+  startDate  DateTime
+  endDate    DateTime
+  billingCycle String          // MONTHLY, QUARTERLY, BI_ANNUAL, ANNUAL
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  bills      MaintenanceBill[]
+}
+
+model MaintenanceBill {
+  id             String                @id @default(uuid())
+  invoiceNumber  String                @unique
+  previousDue    Float                 @default(0.0)
+  currentDue     Float                 @default(0.0)
+  penalty        Float                 @default(0.0)
+  discount       Float                 @default(0.0)
+  totalDue       Float
+  status         String                // UNPAID, PARTIALLY_PAID, PAID, WAIVED
+  pdfUrl         String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  periodId       String
+  period         MaintenancePeriod     @relation(fields: [periodId], references: [id])
+  items          MaintenanceBillItem[]
+  payments       Payment[]
+}
+
+model MaintenanceBillItem {
+  id          String          @id @default(uuid())
+  headName    String          // e.g., "Water charges"
+  amount      Float
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  billId      String
+  bill        MaintenanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  flatId      String
+  flat        Flat            @relation(fields: [flatId], references: [id])
+}
+
+model Payment {
+  id            String          @id @default(uuid())
+  receiptNumber String          @unique
+  amount        Float
+  paymentMode   String          // CASH, CHEQUE, UPI, NET_BANKING
+  transactionId String?
+  paymentDate   DateTime
+  notes         String?
+  status        String          // PENDING, APPROVED, REJECTED
+  receiptUrl    String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  billId        String
+  bill          MaintenanceBill @relation(fields: [billId], references: [id])
+  receipts      Receipt[]
+}
+
+model Receipt {
+  id            String   @id @default(uuid())
+  number        String   @unique
+  url           String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  paymentId     String
+  payment       Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model IncomeCategory {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  incomes     Income[]
+}
+
+model Income {
+  id         String         @id @default(uuid())
+  amount     Float
+  date       DateTime
+  reference  String?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  categoryId String
+  category   IncomeCategory @relation(fields: [categoryId], references: [id])
+}
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  expenses    Expense[]
+}
+
+model Expense {
+  id            String          @id @default(uuid())
+  amount        Float
+  date          DateTime
+  invoiceUrl    String?
+  notes         String?
+  approvalStatus String         // PENDING, APPROVED, REJECTED
+  paidStatus    Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  categoryId    String
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  vendorId      String?
+  vendor        Vendor?         @relation(fields: [vendorId], references: [id])
+}
+
+model Vendor {
+  id            String    @id @default(uuid())
+  name          String
+  mobileNumber  String
+  email         String
+  serviceType   String    // PLUMBING, ELECTRICAL, SECURITY, etc.
+  address       String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  expenses      Expense[]
+}
+
+model Staff {
+  id            String   @id @default(uuid())
+  name          String
+  mobileNumber  String
+  role          String   // SECURITY, CLEANER, MANAGER, etc.
+  timingStart   String
+  timingEnd     String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Complaint {
+  id           String                @id @default(uuid())
+  ticketNumber String                @unique
+  category     String
+  subCategory  String?
+  priority     String                // LOW, MEDIUM, HIGH, URGENT
+  subject      String
+  description  String
+  status       String                @default("OPEN") // OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED
+  rating       Int?
+  feedback     String?
+  expectedAt   DateTime?
+  resolvedAt   DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  societyId    String
+  society      Society               @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flatId       String
+  flat         Flat                  @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  raisedById   String
+  raisedBy     User                  @relation("ComplaintsRaised", fields: [raisedById], references: [id])
+  assignedToId String?
+  assignedTo   User?                 @relation("ComplaintsAssigned", fields: [assignedToId], references: [id])
+  
+  comments     ComplaintComment[]
+  attachments  ComplaintAttachment[]
+}
+
+model ComplaintComment {
+  id          String    @id @default(uuid())
+  text        String
+  isInternal  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+}
+
+model ComplaintAttachment {
+  id          String    @id @default(uuid())
+  fileUrl     String
+  fileName    String
+  createdAt   DateTime  @default(now())
+
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+}
+
+model Notice {
+  id          String       @id @default(uuid())
+  title       String
+  content     String
+  imageUrl    String?
+  documentUrl String?
+  targetRole  String       @default("ALL") // ALL, OWNERS, TENANTS
+  publishDate DateTime     @default(now())
+  expiryDate  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  societyId   String
+  society     Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  reads       NoticeRead[]
+}
+
+model NoticeRead {
+  id        String   @id @default(uuid())
+  readAt    DateTime @default(now())
+
+  noticeId  String
+  notice    Notice   @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  userId    String
+
+  @@unique([noticeId, userId])
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   // SOCIETY_CERT, MINUTES, AUDIT, FLAT_DOC
+  fileUrl     String
+  fileSize    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  societyId   String
+  society     Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+}
+
+model Meeting {
+  id          String            @id @default(uuid())
+  title       String
+  agenda      String
+  dateTime    DateTime
+  location    String
+  onlineLink  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  societyId   String
+  society     Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  attendees   MeetingAttendee[]
+  minutes     MeetingMinutes[]
+}
+
+model MeetingAttendee {
+  id        String   @id @default(uuid())
+  joinedAt  DateTime @default(now())
+
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([meetingId, userId])
+}
+
+model MeetingMinutes {
+  id          String   @id @default(uuid())
+  text        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  meetingId   String
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model Facility {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  charges     Float             @default(0.0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  societyId   String
+  society     Society           @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  bookings    FacilityBooking[]
+}
+
+model FacilityBooking {
+  id          String   @id @default(uuid())
+  startDate   DateTime
+  endDate     DateTime
+  totalAmount Float    @default(0.0)
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  facilityId  String
+  facility    Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  flatId      String
+  flat        Flat     @relation(fields: [flatId], references: [id])
+}
+
+model Visitor {
+  id            String    @id @default(uuid())
+  name          String
+  mobileNumber  String
+  purpose       String
+  checkInTime   DateTime  @default(now())
+  checkOutTime  DateTime?
+  vehicleNumber String?
+  status        String    @default("PENDING") // PENDING, APPROVED, DENIED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  societyId     String
+  society       Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+}
+
+model Poll {
+  id          String       @id @default(uuid())
+  question    String
+  expiresAt   DateTime
+  isAnonymous Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  societyId   String
+  society     Society      @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  options     PollOption[]
+  votes       PollVote[]
+}
+
+model PollOption {
+  id        String     @id @default(uuid())
+  text      String
+  createdAt DateTime   @default(now())
+
+  pollId    String
+  poll      Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes     PollVote[]
+}
+
+model PollVote {
+  id           String     @id @default(uuid())
+  createdAt    DateTime   @default(now())
+
+  pollId       String
+  poll         Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  pollOptionId String
+  pollOption   PollOption @relation(fields: [pollOptionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+}
+
+model Ledger {
+  id         String        @id @default(uuid())
+  name       String
+  code       String        @unique // e.g. "CASH_A_C", "BANK_A_C"
+  balance    Float         @default(0.0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  societyId  String
+  society    Society       @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  entries    LedgerEntry[]
+}
+
+model LedgerEntry {
+  id        String   @id @default(uuid())
+  debit     Float    @default(0.0)
+  credit    Float    @default(0.0)
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+
+  ledgerId  String
+  ledger    Ledger   @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  flatId    String?
+  flat      Flat?    @relation(fields: [flatId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String   // e.g. "USER_LOGIN", "FLAT_CREATE", "BILL_GENERATE"
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  societyId String?
+  society   Society? @relation(fields: [societyId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  channel   String   // IN_APP, PUSH, EMAIL, SMS
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSession {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  refreshToken String   @unique
+  deviceInfo   String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
